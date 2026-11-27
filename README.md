@@ -3,7 +3,7 @@
 A small installable web app (PWA) for keeping coupons and loyalty cards on an Android phone and showing them at checkout.
 
 - Capture a code by taking a photo, picking a screenshot, or typing the number.
-- Chrome on Android reads the barcode from the picture (built-in `BarcodeDetector`). The app then draws a clean copy with [bwip-js](https://github.com/metafloor/bwip-js) and keeps the photo as a backup.
+- The barcode is read from the picture by Chrome's built-in `BarcodeDetector`, or, in Firefox and other browsers without it, by a bundled copy of the ZXing reader ([barcode-detector](https://github.com/Sec-ant/barcode-detector) + `zxing_reader.wasm`, about 1 MB, loaded only when needed). The app then draws a clean copy with [bwip-js](https://github.com/metafloor/bwip-js) and keeps the photo as a backup.
 - Nested folders, favorites, tags with filtering (a coupon must have **all** selected tags), search, optional expiry date.
 - Checkout screen is always black on white and keeps the screen awake.
 - Works offline once opened (service worker).
