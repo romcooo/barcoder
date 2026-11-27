@@ -31,6 +31,7 @@
   color-scheme: dark; }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font-body);
   -webkit-tap-highlight-color: transparent; }
@@ -149,6 +150,20 @@ section { display: flex; flex-direction: column; gap: 10px; }
 .show .toggle button[aria-pressed="true"] { background: #12232a; color: #fff; }
 .show .hintline { font-size: 12.5px; color: #4d5b60; text-align: center; padding: 0 16px 12px; }
 
+/* Live scanner: full-screen camera with an aiming frame. */
+.scanner { position: fixed; inset: 0; z-index: 58; background: #000; color: #fff; display: flex; flex-direction: column; }
+.scanner video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.scanner .aim { position: absolute; left: 50%; top: 45%; width: min(80vw, 420px); aspect-ratio: 16 / 10; transform: translate(-50%, -50%);
+  border-radius: 14px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.45); outline: 3px solid rgba(255,255,255,.9); transition: outline-color .15s; }
+.scanner .aim.hit { outline-color: #5cc2cb; }
+.scanner .top, .scanner .bottom { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px;
+  padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+.scanner .top { padding-top: calc(env(safe-area-inset-top, 0px) + 10px); }
+.scanner .bottom { margin-top: auto; flex-direction: column; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); text-align: center; }
+.scanner .iconbtn { color: #fff; background: rgba(0,0,0,.35); }
+.scanner .iconbtn[aria-pressed="true"] { background: #fff; color: #000; }
+.scanner .msg { font-size: 15px; font-weight: 500; text-shadow: 0 1px 3px #000; max-width: 34ch; }
+.scanner .btn { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); color: #fff; }
 .toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); transform: translateX(-50%); z-index: 60;
   background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: no-preference) {
@@ -182,6 +197,9 @@ const ICONS = {
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
   keys: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M16 6v12M20 6v12"/></svg>',
+  scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3"/><path d="M8 9v6M11 9v6M14 9v6M16.5 9v6"/></svg>',
+  close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  torch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 3h10v4l-3 4v10h-4V11L7 7z"/><path d="M12 14v2"/></svg>',
   newfolder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.6l2 2h7.4A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><path d="M12 10v6M9 13h6"/></svg>',
 };
 
@@ -536,16 +554,19 @@ function renderOverlay() {
 }
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  if (showEl) closeShow(); else if (state.overlay) closeSheet();
+  if (scanEl) closeScanner(); else if (showEl) closeShow(); else if (state.overlay) closeSheet();
 });
 
 /* Add: choose where the code comes from */
 function addSheet(el) {
+  const canLive = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   el.innerHTML = `<h3>Add a coupon or card</h3>
-    <button class="choice" id="aCam">${ICONS.camera}<span><b>Take a photo</b><span>Point at the barcode, fill most of the frame, keep it sharp.</span></span></button>
+    ${canLive ? `<button class="choice" id="aScan">${ICONS.scan}<span><b>Scan with camera</b><span>Hold the barcode inside the frame. It's picked up by itself.</span></span></button>` : ""}
+    <button class="choice" id="aCam">${ICONS.camera}<span><b>Take a photo</b><span>Uses your camera app. Good when live scanning struggles.</span></span></button>
     <button class="choice" id="aGal">${ICONS.image}<span><b>Choose a picture</b><span>A screenshot of an email or app coupon works well.</span></span></button>
     <button class="choice" id="aType">${ICONS.keys}<span><b>Type the number</b><span>For cards with the number printed under the barcode.</span></span></button>
 `;
+  $("#aScan", el) && ($("#aScan", el).onclick = () => { closeSheet(); openScanner(); });
   $("#aCam", el).onclick = () => $("#fileCamera").click();
   $("#aGal", el).onclick = () => $("#fileGallery").click();
   $("#aType", el).onclick = () => openSheet(s => editSheet(s, newDraft()));
@@ -566,6 +587,103 @@ async function onPicked(file) {
   openSheet(s => editSheet(s, draft));
 }
 ["#fileCamera", "#fileGallery"].forEach(s => $(s).addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; onPicked(f); }));
+
+/* ---------- live scanner ----------
+   Shows the camera feed and checks a frame several times a second. A code has to be
+   read the same way twice in a row before we accept it, which filters out the
+   occasional misread of a half-visible 1D barcode. */
+let scanEl = null, scanStream = null, scanStop = null;
+async function openScanner() {
+  closeScanner();
+  scanEl = document.createElement("div");
+  scanEl.className = "scanner"; scanEl.setAttribute("role", "dialog"); scanEl.setAttribute("aria-label", "Scan a barcode");
+  scanEl.innerHTML = `
+    <video playsinline muted autoplay></video>
+    <div class="aim" aria-hidden="true"></div>
+    <div class="top"><button class="iconbtn" id="scClose" aria-label="Close">${ICONS.close}</button><span style="flex:1"></span>
+      <button class="iconbtn" id="scTorch" aria-label="Flashlight" aria-pressed="false" hidden>${ICONS.torch}</button></div>
+    <div class="bottom"><div class="msg" id="scMsg" role="status">Starting the camera…</div>
+      <button class="btn" id="scPhoto">Take a photo instead</button></div>`;
+  document.body.appendChild(scanEl);
+  if (!history.state?.scan) history.pushState({ scan: 1 }, "");
+  const video = $("video", scanEl), msg = $("#scMsg", scanEl);
+  $("#scClose", scanEl).onclick = () => closeScanner();
+  $("#scPhoto", scanEl).onclick = () => { leaveScanner(); $("#fileCamera").click(); };
+
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ audio: false,
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  } catch (e) {
+    msg.textContent = e.name === "NotAllowedError"
+      ? "Camera access is blocked. Allow it in the browser's site settings, or take a photo instead."
+      : "The camera couldn't start. Take a photo instead.";
+    return;
+  }
+  if (!scanEl) { scanStream.getTracks().forEach(t => t.stop()); return; }   // closed while waiting
+  video.srcObject = scanStream;
+  const stream = scanStream;
+  try { await video.play(); } catch {}
+  if (!scanEl) return;
+
+  // Flashlight: Chrome on Android supports it; Firefox usually doesn't, so the button stays hidden there.
+  const track = stream.getVideoTracks()[0];
+  try {
+    if (track.getCapabilities && track.getCapabilities().torch) {
+      const tb = $("#scTorch", scanEl); tb.hidden = false;
+      tb.onclick = async () => { const on = tb.getAttribute("aria-pressed") !== "true";
+        try { await track.applyConstraints({ advanced: [{ torch: on }] }); tb.setAttribute("aria-pressed", on); } catch {} };
+    }
+  } catch {}
+
+  let Detector;
+  try { Detector = await getDetectorClass(); } catch { msg.textContent = "The barcode reader couldn't load. Take a photo instead."; return; }
+  const supported = await Detector.getSupportedFormats().catch(() => []);
+  const det = new Detector({ formats: FORMATS.map(f => f.det).filter(f => supported.includes(f)) });
+  msg.textContent = "Hold the barcode inside the frame";
+
+  const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d", { willReadFrequently: true });
+  let last = null, running = true;
+  scanStop = () => { running = false; };
+  const started = Date.now();
+  while (running && scanEl) {
+    if (video.readyState >= 2 && video.videoWidth) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      let found = [];
+      try { found = await det.detect(canvas); } catch {}
+      if (!running) break;
+      if (found.length) {
+        found.sort((a, b) => (b.boundingBox.width * b.boundingBox.height) - (a.boundingBox.width * a.boundingBox.height));
+        const code = { format: found[0].format, value: found[0].rawValue };
+        $(".aim", scanEl).classList.add("hit");
+        if (last && last.format === code.format && last.value === code.value) {
+          try { navigator.vibrate?.(60); } catch {}
+          const photo = await new Promise(r => canvas.toBlob(r, "image/jpeg", 0.85));
+          leaveScanner();
+          const draft = newDraft(); draft.code = code; draft.photo = photo;
+          draft._detect = { status: "ok", code, count: found.length };
+          openSheet(s => editSheet(s, draft));
+          return;
+        }
+        last = code;
+      } else {
+        last = null; $(".aim", scanEl)?.classList.remove("hit");
+        if (Date.now() - started > 12000) msg.textContent = "Still looking. Move a bit closer or further, avoid glare, or take a photo instead.";
+      }
+    }
+    await new Promise(r => setTimeout(r, 120));
+  }
+}
+function closeScanner(fromPop) {
+  if (scanStop) { scanStop(); scanStop = null; }
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  if (scanEl) { scanEl.remove(); scanEl = null; if (fromPop !== true && history.state?.scan) history.back(); }
+}
+// Close the scanner to go somewhere else: drop its history entry without a "back",
+// so the back handler doesn't also close the sheet we open next.
+function leaveScanner() { if (history.state?.scan) history.replaceState(null, ""); closeScanner(true); }
+// Don't keep the camera on while the app is in the background.
+document.addEventListener("visibilitychange", () => { if (document.hidden && scanEl) closeScanner(); });
 
 /* Edit / create an item */
 function folderOptions(selected, excludeIds = new Set()) {
@@ -829,7 +947,7 @@ function closeShow(fromPop) {
   render();
 }
 // Android back button closes the checkout view instead of leaving the app.
-window.addEventListener("popstate", () => { if (showEl) closeShow(true); else if (state.overlay) closeSheet(); });
+window.addEventListener("popstate", () => { if (scanEl) closeScanner(true); else if (showEl) closeShow(true); else if (state.overlay) closeSheet(); });
 
 /* ---------- start ---------- */
 async function load() {
