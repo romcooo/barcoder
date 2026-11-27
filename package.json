@@ -1,0 +1,7 @@
+{
+  "name": "barcoder",
+  "private": true,
+  "description": "Coupon Wallet: keep coupons and loyalty cards on your Android phone.",
+  "scripts": { "build": "./build.sh" },
+  "dependencies": { "bwip-js": "4.8.0" }
+}
