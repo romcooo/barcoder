@@ -1,0 +1,828 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+</head><body>
+<title>Coupon Wallet</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0f3b44">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* Layout: one-column phone app. Sticky header with search + tag chips, folder browser below,
+   floating "+" button. The checkout view is always black-on-white so scanners can read it. */
+:root {
+  --bg: #eef2f3;
+  --surface: #ffffff;
+  --ink: #12232a;
+  --muted: #5b6c72;
+  --line: #d5dee1;
+  --accent: #0f6b74;
+  --accent-ink: #ffffff;
+  --accent-soft: #d6ecee;
+  --star: #c98a06;
+  --danger: #b3261e;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0d1719; --surface: #16252a; --ink: #e5eef0; --muted: #93a6ab; --line: #27393e;
+  --accent: #5cc2cb; --accent-ink: #062326; --accent-soft: #173c41; --star: #f0b429; --danger: #ff8a80;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0d1719; --surface: #16252a; --ink: #e5eef0; --muted: #93a6ab; --line: #27393e;
+  --accent: #5cc2cb; --accent-ink: #062326; --accent-soft: #173c41; --star: #f0b429; --danger: #ff8a80;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font-body);
+  -webkit-tap-highlight-color: transparent; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 720px; margin: 0 auto; }
+
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); padding-block: 12px 8px; border-bottom: 1px solid var(--line); }
+.titlerow { display: flex; align-items: center; gap: 8px; }
+h1 { font: 700 22px/1.1 var(--font-display); margin: 0; flex: 1; letter-spacing: -0.01em; }
+h2 { font: 600 13px/1.2 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; }
+.iconbtn { border: 0; background: transparent; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
+.iconbtn:hover { background: var(--accent-soft); }
+.iconbtn svg { width: 22px; height: 22px; }
+.search { margin-top: 10px; position: relative; }
+.search input { width: 100%; padding: 10px 12px 10px 38px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-block: 10px 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 12px; font-size: 13px; white-space: nowrap; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip.fav[aria-pressed="true"] { background: var(--star); border-color: var(--star); color: #1b1300; }
+
+main { padding-block: 12px 110px; display: flex; flex-direction: column; gap: 20px; }
+section { display: flex; flex-direction: column; gap: 10px; }
+.sechead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 4px 0; }
+
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
+.crumbs button { border: 0; background: none; padding: 2px 4px; color: var(--accent); font-weight: 500; }
+.crumbs .here { color: var(--ink); font-weight: 600; padding: 2px 4px; }
+
+.favstrip { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.favcard { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 0; text-align: left; overflow: hidden; display: flex; flex-direction: column; }
+.favcard .thumb { height: 78px; }
+.favcard .nm { padding: 8px 10px; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; width: 100%; min-height: 60px; }
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--accent-soft); }
+.row .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .sub { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .thumb { width: 56px; height: 40px; flex: none; border-radius: 6px; }
+.foldericon { width: 40px; height: 40px; flex: none; display: grid; place-items: center; color: var(--accent); }
+.foldericon svg { width: 26px; height: 26px; }
+.count { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.thumb { background: #fff; display: grid; place-items: center; overflow: hidden; border-bottom: 1px solid var(--line); }
+.row .thumb { border: 1px solid var(--line); }
+.thumb img, .thumb canvas { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.thumb .noimg { color: #6b7b80; font-size: 11px; }
+.star { color: var(--star); flex: none; }
+.star svg { width: 18px; height: 18px; display: block; }
+.tags { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.tag { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); }
+.pill-exp { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.pill-soon { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--star) 20%, transparent); color: var(--star); }
+
+.empty { text-align: center; color: var(--muted); padding: 28px 16px; border: 1px dashed var(--line); border-radius: var(--radius); }
+.empty strong { color: var(--ink); display: block; font-family: var(--font-display); font-size: 17px; margin-bottom: 4px; }
+.notice { font-size: 13px; padding: 10px 12px; border-radius: var(--radius); background: var(--accent-soft); }
+
+.fab { position: fixed; right: max(18px, calc(env(safe-area-inset-right, 0px) + 18px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); z-index: 25;
+  border: 0; border-radius: 18px; height: 56px; padding: 0 20px 0 16px; display: flex; align-items: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink); font-weight: 600; box-shadow: 0 6px 18px rgba(0,0,0,.22); }
+.fab svg { width: 24px; height: 24px; }
+
+/* Sheets (bottom dialogs) */
+.scrim { position: fixed; inset: 0; background: rgba(5,15,18,.5); z-index: 55; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 720px; max-height: 92%; overflow-y: auto; border-radius: 18px 18px 0 0;
+  padding-block: 18px calc(env(safe-area-inset-bottom, 0px) + 18px); padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px; }
+.sheet > * { flex-shrink: 0; }
+.sheet h3 { font: 700 19px/1.2 var(--font-display); margin: 0; }
+.sheet p { margin: 0; color: var(--muted); }
+.choice { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: none; text-align: left; width: 100%; }
+.choice svg { width: 26px; height: 26px; color: var(--accent); flex: none; }
+.choice b { display: block; }
+.choice span { font-size: 13px; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label, .field .lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+.field input, .field select, .field textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); }
+.field .hint { font-size: 12px; color: var(--muted); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two > * { min-width: 0; }
+.btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px 16px; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
+.btn.grow { flex: 1; }
+.preview { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); min-height: 90px; display: grid; place-items: center; padding: 10px; }
+.preview img, .preview canvas { max-width: 100%; max-height: 180px; display: block; }
+.detect { font-size: 13px; padding: 8px 10px; border-radius: 8px; }
+.detect.ok { background: var(--accent-soft); }
+.detect.no { background: color-mix(in srgb, var(--star) 18%, transparent); }
+.tagpick { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Checkout view: always white, whatever the theme. */
+.show { position: fixed; inset: 0; z-index: 50; background: #ffffff; color: #111; display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.show .bar { display: flex; align-items: center; gap: 4px; padding: 8px max(8px, env(safe-area-inset-left, 0px)); }
+.show .bar .iconbtn { color: #111; }
+.show .bar .iconbtn:hover { background: #eef2f3; }
+.show .bar .grow { flex: 1; }
+.show .stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 12px max(16px, env(safe-area-inset-left, 0px)); min-height: 0; }
+.show .stage canvas, .show .stage img { max-width: 100%; max-height: 62vh; display: block; image-rendering: pixelated; }
+.show .stage img { image-rendering: auto; }
+.show .name { font: 700 24px/1.15 var(--font-display); text-align: center; text-wrap: balance; }
+.show .value { font: 500 18px/1.3 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .08em; text-align: center; word-break: break-all; user-select: all; }
+.show .meta { font-size: 13px; color: #4d5b60; text-align: center; }
+.show .toggle { display: inline-flex; border: 1px solid #c9d3d6; border-radius: 999px; overflow: hidden; }
+.show .toggle button { border: 0; background: #fff; color: #111; padding: 6px 14px; font-size: 13px; font-weight: 600; }
+.show .toggle button[aria-pressed="true"] { background: #12232a; color: #fff; }
+.show .hintline { font-size: 12.5px; color: #4d5b60; text-align: center; padding: 0 16px 12px; }
+
+.toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: up .18s ease-out; }
+  @keyframes up { from { transform: translateY(24px); } }
+}
+</style>
+
+<div id="app"></div>
+<input type="file" id="fileCamera" accept="image/*" capture="environment" hidden>
+<input type="file" id="fileGallery" accept="image/*" hidden>
+<input type="file" id="fileImport" accept="application/json,.json" hidden>
+
+<script src="bwip-js-min.js"></script>
+<script>
+"use strict";
+/* ============================================================
+   Coupon Wallet — local-only barcode & coupon keeper.
+   Data lives in IndexedDB on this device (stores: folders, items).
+   ============================================================ */
+
+const ICONS = {
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  folder: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.6c.6 0 1.2.25 1.6.7L12 6h6.5A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/></svg>',
+  starOn: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  starOff: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5 8 12l7 7"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
+  keys: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6v12M7 6v12M11 6v12M14 6v12M16 6v12M20 6v12"/></svg>',
+  newfolder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A2.5 2.5 0 0 1 5.5 4h3.6l2 2h7.4A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><path d="M12 10v6M9 13h6"/></svg>',
+};
+
+/* ---------- tiny helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const normTag = t => t.trim().toLowerCase().replace(/^#/, "").replace(/\s+/g, " ");
+const IN_FRAME = (() => { try { return window.self !== window.top; } catch { return true; } })();
+
+function toast(msg) {
+  const t = document.createElement("div");
+  t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+/* ---------- storage (IndexedDB, with in-memory fallback) ---------- */
+const DB = (() => {
+  let db = null, mem = { folders: new Map(), items: new Map() };
+  function open() {
+    return new Promise(res => {
+      try {
+        const req = indexedDB.open("coupon-wallet", 1);
+        req.onupgradeneeded = () => {
+          const d = req.result;
+          d.createObjectStore("folders", { keyPath: "id" });
+          d.createObjectStore("items", { keyPath: "id" });
+        };
+        req.onsuccess = () => { db = req.result; res(true); };
+        req.onerror = () => res(false);
+      } catch { res(false); }
+    });
+  }
+  function tx(store, mode, fn) {
+    if (!db) return Promise.resolve(fn(null));
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, mode), s = t.objectStore(store);
+      const r = fn(s);
+      t.oncomplete = () => res(r && r.result !== undefined ? r.result : r);
+      t.onerror = () => rej(t.error);
+    });
+  }
+  return {
+    open,
+    get persistent() { return !!db; },
+    async all(store) {
+      if (!db) return [...mem[store].values()];
+      return tx(store, "readonly", s => s.getAll());
+    },
+    async put(store, obj) {
+      if (!db) { mem[store].set(obj.id, obj); return; }
+      return tx(store, "readwrite", s => s.put(obj));
+    },
+    async del(store, id) {
+      if (!db) { mem[store].delete(id); return; }
+      return tx(store, "readwrite", s => s.delete(id));
+    },
+    async clear() {
+      if (!db) { mem.folders.clear(); mem.items.clear(); return; }
+      await tx("folders", "readwrite", s => s.clear());
+      await tx("items", "readwrite", s => s.clear());
+    },
+  };
+})();
+
+/* ---------- app state ---------- */
+const state = {
+  folders: [],          // {id, name, parentId|null}
+  items: [],            // {id, name, folderId|null, favorite, tags[], code:{format,value}|null, photo:Blob|null, notes, expires:"YYYY-MM-DD"|"", createdAt, usedAt}
+  folderId: null,       // current folder in the browser (null = top level)
+  query: "",
+  tagFilter: new Set(),
+  favOnly: false,
+  overlay: null,        // function that renders the open sheet, or null
+};
+const photoURLs = new Map(); // item id -> object URL (cached)
+function photoURL(item) {
+  if (!item.photo) return null;
+  if (!photoURLs.has(item.id)) photoURLs.set(item.id, URL.createObjectURL(item.photo));
+  return photoURLs.get(item.id);
+}
+function dropPhotoURL(id) { const u = photoURLs.get(id); if (u) { URL.revokeObjectURL(u); photoURLs.delete(id); } }
+
+const folderById = id => state.folders.find(f => f.id === id) || null;
+const childFolders = pid => state.folders.filter(f => (f.parentId ?? null) === pid).sort((a, b) => a.name.localeCompare(b.name));
+const itemsIn = fid => state.items.filter(i => (i.folderId ?? null) === fid).sort(byFavThenName);
+function byFavThenName(a, b) { return (b.favorite - a.favorite) || a.name.localeCompare(b.name); }
+function folderPath(id) {
+  const out = []; let f = folderById(id), guard = 0;
+  while (f && guard++ < 50) { out.unshift(f); f = folderById(f.parentId); }
+  return out;
+}
+const pathLabel = id => id ? folderPath(id).map(f => f.name).join(" / ") : "Top level";
+function descendantIds(id) {
+  const out = new Set([id]); let grew = true;
+  while (grew) { grew = false; for (const f of state.folders) if (out.has(f.parentId) && !out.has(f.id)) { out.add(f.id); grew = true; } }
+  return out;
+}
+function countInside(id) {
+  const ids = descendantIds(id);
+  return state.items.filter(i => ids.has(i.folderId)).length;
+}
+function allTags() {
+  const m = new Map();
+  for (const i of state.items) for (const t of i.tags) m.set(t, (m.get(t) || 0) + 1);
+  return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(e => e[0]);
+}
+function expiryState(item) {
+  if (!item.expires) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(item.expires + "T00:00:00");
+  const days = Math.round((d - today) / 86400000);
+  if (days < 0) return { cls: "pill-exp", text: "Expired" };
+  if (days <= 7) return { cls: "pill-soon", text: days === 0 ? "Ends today" : `${days} day${days > 1 ? "s" : ""} left` };
+  return null;
+}
+
+/* ---------- barcode formats ----------
+   BarcodeDetector (built into Chrome on Android) names formats one way,
+   bwip-js (the renderer) another. This table maps between them. */
+const FORMATS = [
+  { det: "ean_13", bwip: "ean13", label: "EAN-13 (most products, 13 digits)" },
+  { det: "ean_8", bwip: "ean8", label: "EAN-8 (8 digits)" },
+  { det: "upc_a", bwip: "upca", label: "UPC-A (12 digits)" },
+  { det: "upc_e", bwip: "upce", label: "UPC-E (8 digits)" },
+  { det: "code_128", bwip: "code128", label: "Code 128 (letters & digits)" },
+  { det: "code_39", bwip: "code39", label: "Code 39" },
+  { det: "code_93", bwip: "code93", label: "Code 93" },
+  { det: "itf", bwip: "interleaved2of5", label: "ITF (Interleaved 2 of 5)" },
+  { det: "codabar", bwip: "rationalizedCodabar", label: "Codabar" },
+  { det: "qr_code", bwip: "qrcode", label: "QR code" },
+  { det: "data_matrix", bwip: "datamatrix", label: "Data Matrix" },
+  { det: "pdf417", bwip: "pdf417", label: "PDF417" },
+  { det: "aztec", bwip: "azteccode", label: "Aztec" },
+];
+const fmt = det => FORMATS.find(f => f.det === det);
+const is2D = det => ["qr_code", "data_matrix", "aztec"].includes(det);
+
+/* Draw a code to a canvas. Returns the canvas, or null if it can't be drawn. */
+function renderCode(code, { scale = 3, height = 22, text = false } = {}) {
+  if (!code || !code.value || typeof bwipjs === "undefined") return null;
+  const f = fmt(code.format); if (!f) return null;
+  const c = document.createElement("canvas");
+  try {
+    const opts = { bcid: f.bwip, text: code.value, scale, paddingwidth: 6, paddingheight: 6, backgroundcolor: "ffffff" };
+    if (!is2D(code.format) && f.bwip !== "pdf417") { opts.height = height; opts.includetext = text; opts.textxalign = "center"; }
+    bwipjs.toCanvas(c, opts);
+    return c;
+  } catch (e) { return null; }
+}
+function codeError(code) {
+  const f = fmt(code.format); if (!f || typeof bwipjs === "undefined") return "Barcode drawing isn't available.";
+  try { bwipjs.toCanvas(document.createElement("canvas"), { bcid: f.bwip, text: code.value }); return null; }
+  catch (e) { return String(e.message || e).replace(/^bwipp\.\w+#\d+:\s*/, ""); }
+}
+
+/* Read a barcode out of a picture. Uses the phone's built-in detector. */
+const HAS_DETECTOR = "BarcodeDetector" in window;
+async function detectIn(blob) {
+  if (!HAS_DETECTOR) return { status: "unsupported" };
+  try {
+    const supported = await BarcodeDetector.getSupportedFormats();
+    const formats = FORMATS.map(f => f.det).filter(f => supported.includes(f));
+    const det = new BarcodeDetector({ formats });
+    const bmp = await createImageBitmap(blob);
+    const found = await det.detect(bmp);
+    if (!found.length) return { status: "none" };
+    // Prefer the largest code in the picture: that's usually the one you photographed.
+    found.sort((a, b) => (b.boundingBox.width * b.boundingBox.height) - (a.boundingBox.width * a.boundingBox.height));
+    return { status: "ok", code: { format: found[0].format, value: found[0].rawValue }, count: found.length };
+  } catch (e) { return { status: "error", error: String(e) }; }
+}
+
+/* Shrink photos before storing: phone cameras give 4–12 MB images, we keep ~200–400 KB. */
+async function shrink(file, max = 1600) {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.85));
+  } catch { return file; }
+}
+
+/* ---------- thumbnails ---------- */
+function thumbHTML(item, cls = "thumb") {
+  return `<span class="${cls}" data-thumb="${esc(item.id)}"></span>`;
+}
+function fillThumbs(root = document) {
+  root.querySelectorAll("[data-thumb]").forEach(el => {
+    const item = state.items.find(i => i.id === el.dataset.thumb); if (!item) return;
+    const c = renderCode(item.code, { scale: 2, height: 12 });
+    if (c) { el.appendChild(c); return; }
+    const u = photoURL(item);
+    if (u) { const img = new Image(); img.alt = ""; img.src = u; el.appendChild(img); return; }
+    el.innerHTML = '<span class="noimg">no code</span>';
+  });
+}
+
+/* ---------- main render ---------- */
+const app = $("#app");
+function render() {
+  const filtering = state.query.trim() || state.tagFilter.size || state.favOnly;
+  const tags = allTags();
+  app.innerHTML = `
+  <header class="top"><div class="wrap">
+    <div class="titlerow">
+      <h1>Coupon Wallet</h1>
+      <button class="iconbtn" id="menuBtn" aria-label="Backup and settings">${ICONS.more}</button>
+    </div>
+    <div class="search">${ICONS.search}<input id="q" type="search" placeholder="Search names, notes, numbers" value="${esc(state.query)}" aria-label="Search"></div>
+    <div class="chips" role="group" aria-label="Filter">
+      <button class="chip fav" data-fav aria-pressed="${state.favOnly}">★ Favorites</button>
+      ${tags.map(t => `<button class="chip" data-tag="${esc(t)}" aria-pressed="${state.tagFilter.has(t)}">#${esc(t)}</button>`).join("")}
+    </div>
+  </div></header>
+  <main class="wrap">
+    ${!DB.persistent ? `<div class="notice">This browser blocked on-device storage, so anything you add here disappears when you close the page.</div>` : ""}
+    ${IN_FRAME ? `<div class="notice"><b>Preview copy.</b> Inside Claude, storage may be wiped and the camera opens through the file picker. Use the installed version for real coupons.</div>` : ""}
+    ${filtering ? renderResults() : renderBrowser()}
+  </main>
+  <button class="fab" id="addBtn">${ICONS.plus}Add</button>`;
+  fillThumbs(app);
+  bindMain();
+}
+
+function itemRow(i, showPath) {
+  const exp = expiryState(i);
+  const sub = [
+    showPath ? esc(pathLabel(i.folderId)) : "",
+    i.tags.length ? `<span class="tags">${i.tags.map(t => `<span class="tag">#${esc(t)}</span>`).join("")}</span>` : "",
+  ].filter(Boolean).join(" · ");
+  return `<button class="row" data-open="${esc(i.id)}">
+    ${thumbHTML(i)}
+    <span class="body"><span class="nm">${esc(i.name)}</span>${sub ? `<span class="sub">${sub}</span>` : ""}</span>
+    ${exp ? `<span class="${exp.cls}">${exp.text}</span>` : ""}
+    ${i.favorite ? `<span class="star" aria-label="Favorite">${ICONS.starOn}</span>` : ""}
+  </button>`;
+}
+
+function renderBrowser() {
+  const fid = state.folderId;
+  const path = folderPath(fid);
+  const subs = childFolders(fid);
+  const items = itemsIn(fid);
+  const favs = fid === null ? state.items.filter(i => i.favorite).sort((a, b) => (b.usedAt || 0) - (a.usedAt || 0)) : [];
+  const crumbs = `<nav class="crumbs" aria-label="Folder path">
+      ${fid === null ? `<span class="here">All folders</span>` : `<button data-go="">All folders</button>`}
+      ${path.map((f, n) => `<span aria-hidden="true">›</span>${n === path.length - 1 ? `<span class="here">${esc(f.name)}</span>` : `<button data-go="${esc(f.id)}">${esc(f.name)}</button>`}`).join("")}
+    </nav>`;
+  const nothing = !subs.length && !items.length;
+  return `
+    ${favs.length ? `<section aria-label="Favorites"><div class="sechead"><h2>Favorites</h2></div>
+      <div class="favstrip">${favs.map(i => `<button class="favcard" data-open="${esc(i.id)}">${thumbHTML(i)}<span class="nm">${esc(i.name)}</span></button>`).join("")}</div></section>` : ""}
+    <section>
+      <div class="sechead">${crumbs}
+        <span style="display:flex;gap:2px">
+          ${fid !== null ? `<button class="iconbtn" id="folderMenu" aria-label="Rename, move or delete this folder">${ICONS.edit}</button>` : ""}
+          <button class="iconbtn" id="newFolder" aria-label="New folder here">${ICONS.newfolder}</button>
+        </span>
+      </div>
+      ${subs.length ? `<div class="list">${subs.map(f => `<button class="row" data-go="${esc(f.id)}">
+          <span class="foldericon">${ICONS.folder}</span>
+          <span class="body"><span class="nm">${esc(f.name)}</span></span>
+          <span class="count">${countInside(f.id)}</span></button>`).join("")}</div>` : ""}
+      ${items.length ? `<div class="list">${items.map(i => itemRow(i, false)).join("")}</div>` : ""}
+      ${nothing ? (fid === null && !state.items.length
+        ? `<div class="empty"><strong>No coupons yet</strong>Tap <b>Add</b> and photograph a barcode, pick a screenshot, or type the number printed under it.</div>`
+        : `<div class="empty"><strong>This folder is empty</strong>Add a coupon here or make a folder inside it.</div>`) : ""}
+    </section>`;
+}
+
+function matches(i) {
+  if (state.favOnly && !i.favorite) return false;
+  for (const t of state.tagFilter) if (!i.tags.includes(t)) return false;   // ALL selected tags must match
+  const q = state.query.trim().toLowerCase();
+  if (!q) return true;
+  const hay = [i.name, i.notes, i.code?.value, pathLabel(i.folderId), ...i.tags].join(" ").toLowerCase();
+  return q.split(/\s+/).every(w => hay.includes(w));
+}
+function renderResults() {
+  const list = state.items.filter(matches).sort(byFavThenName);
+  const what = [state.favOnly ? "favorites" : "", ...[...state.tagFilter].map(t => "#" + t), state.query.trim() ? `“${esc(state.query.trim())}”` : ""].filter(Boolean).join(" + ");
+  return `<section>
+    <div class="sechead"><h2>${list.length} match${list.length === 1 ? "" : "es"} · ${what}</h2><button class="linkbtn" id="clearFilter">Clear</button></div>
+    ${list.length ? `<div class="list">${list.map(i => itemRow(i, true)).join("")}</div>`
+      : `<div class="empty"><strong>Nothing matches</strong>When several tags are selected, a coupon needs all of them.</div>`}
+  </section>`;
+}
+
+function bindMain() {
+  const q = $("#q");
+  q.addEventListener("input", () => {
+    state.query = q.value; const pos = q.selectionStart;
+    render(); const nq = $("#q"); nq.focus(); try { nq.setSelectionRange(pos, pos); } catch {}
+  });
+  app.querySelectorAll("[data-tag]").forEach(b => b.onclick = () => {
+    const t = b.dataset.tag; state.tagFilter.has(t) ? state.tagFilter.delete(t) : state.tagFilter.add(t); render();
+  });
+  $("[data-fav]").onclick = () => { state.favOnly = !state.favOnly; render(); };
+  app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { state.folderId = b.dataset.go || null; render(); window.scrollTo(0, 0); });
+  app.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openShow(b.dataset.open));
+  $("#clearFilter") && ($("#clearFilter").onclick = () => { state.query = ""; state.tagFilter.clear(); state.favOnly = false; render(); });
+  $("#addBtn").onclick = () => openSheet(addSheet);
+  $("#newFolder") && ($("#newFolder").onclick = () => openSheet(s => folderSheet(s, null)));
+  $("#folderMenu") && ($("#folderMenu").onclick = () => openSheet(s => folderSheet(s, state.folderId)));
+  $("#menuBtn").onclick = () => openSheet(menuSheet);
+}
+
+/* ---------- sheets ---------- */
+let overlayEl = null;
+function openSheet(fn) { state.overlay = fn; renderOverlay(); }
+function closeSheet() { state.overlay = null; renderOverlay(); }
+function renderOverlay() {
+  if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+  if (!state.overlay) return;
+  overlayEl = document.createElement("div");
+  overlayEl.className = "scrim";
+  overlayEl.addEventListener("click", e => { if (e.target === overlayEl) closeSheet(); });
+  const sheet = document.createElement("div");
+  sheet.className = "sheet"; sheet.setAttribute("role", "dialog"); sheet.setAttribute("aria-modal", "true");
+  overlayEl.appendChild(sheet);
+  document.body.appendChild(overlayEl);
+  state.overlay(sheet);
+}
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (showEl) closeShow(); else if (state.overlay) closeSheet();
+});
+
+/* Add: choose where the code comes from */
+function addSheet(el) {
+  el.innerHTML = `<h3>Add a coupon or card</h3>
+    <button class="choice" id="aCam">${ICONS.camera}<span><b>Take a photo</b><span>Point at the barcode, fill most of the frame, keep it sharp.</span></span></button>
+    <button class="choice" id="aGal">${ICONS.image}<span><b>Choose a picture</b><span>A screenshot of an email or app coupon works well.</span></span></button>
+    <button class="choice" id="aType">${ICONS.keys}<span><b>Type the number</b><span>For cards with the number printed under the barcode.</span></span></button>
+    ${!HAS_DETECTOR ? `<p class="hint">This browser can't read barcodes from pictures, so photos are saved as photos. Chrome on Android can.</p>` : ""}`;
+  $("#aCam", el).onclick = () => $("#fileCamera").click();
+  $("#aGal", el).onclick = () => $("#fileGallery").click();
+  $("#aType", el).onclick = () => openSheet(s => editSheet(s, newDraft()));
+}
+function newDraft() {
+  return { id: null, name: "", folderId: state.folderId, favorite: false, tags: [], code: null, photo: null, notes: "", expires: "" };
+}
+async function onPicked(file) {
+  if (!file) return;
+  const el = overlayEl && $(".sheet", overlayEl);
+  if (el) el.innerHTML = `<h3>Reading the picture…</h3><p>Looking for a barcode.</p>`;
+  const photo = await shrink(file);
+  const res = await detectIn(file);           // detect on the full-size original for best accuracy
+  const draft = newDraft();
+  draft.photo = photo;
+  if (res.status === "ok") draft.code = res.code;
+  draft._detect = res;
+  openSheet(s => editSheet(s, draft));
+}
+["#fileCamera", "#fileGallery"].forEach(s => $(s).addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; onPicked(f); }));
+
+/* Edit / create an item */
+function folderOptions(selected, excludeIds = new Set()) {
+  const out = [`<option value="" ${selected == null ? "selected" : ""}>Top level</option>`];
+  (function walk(pid, depth) {
+    for (const f of childFolders(pid)) {
+      if (excludeIds.has(f.id)) continue;
+      out.push(`<option value="${esc(f.id)}" ${f.id === selected ? "selected" : ""}>${" ".repeat(depth)}${esc(f.name)}</option>`);
+      walk(f.id, depth + 1);
+    }
+  })(null, 0);
+  return out.join("");
+}
+function editSheet(el, draft) {
+  const d = draft._detect;
+  const known = allTags();
+  const detectMsg = !d ? "" :
+    d.status === "ok" ? `<div class="detect ok">Barcode found (${esc(fmt(d.code.format)?.label.split(" (")[0] || d.code.format)})${d.count > 1 ? ` (the largest of ${d.count} in the picture)` : ""}. The app will show a clean copy at checkout, and keep the photo as a backup.</div>` :
+    d.status === "unsupported" ? `<div class="detect no">This browser can't read barcodes, so the photo will be shown at checkout. You can type the number below to get a clean code.</div>` :
+    `<div class="detect no">No barcode found in the picture. The photo will be shown as-is. If there's a number under the barcode, type it below for a cleaner code.</div>`;
+  el.innerHTML = `
+    <h3>${draft.id ? "Edit" : "New coupon"}</h3>
+    ${detectMsg}
+    <div class="preview" id="pv"></div>
+    <div class="field"><label for="fName">Name</label><input id="fName" value="${esc(draft.name)}" placeholder="e.g. Tesco Clubcard, 20% off shoes" autocomplete="off"></div>
+    <div class="two">
+      <div class="field"><label for="fFolder">Folder</label><select id="fFolder">${folderOptions(draft.folderId)}</select></div>
+      <div class="field"><label for="fExp">Expires (optional)</label><input id="fExp" type="date" value="${esc(draft.expires)}"></div>
+    </div>
+    <div class="field"><label for="fTags">Tags</label><input id="fTags" value="${esc(draft.tags.join(", "))}" placeholder="groceries, loyalty" autocomplete="off">
+      ${known.length ? `<div class="tagpick" id="tagPick">${known.map(t => `<button type="button" class="chip" data-addtag="${esc(t)}" aria-pressed="${draft.tags.includes(t)}">#${esc(t)}</button>`).join("")}</div>` : `<span class="hint">Separate tags with commas.</span>`}
+    </div>
+    <div class="two">
+      <div class="field"><label for="fFormat">Code type</label><select id="fFormat">
+        <option value="">None (photo only)</option>
+        ${FORMATS.map(f => `<option value="${f.det}" ${draft.code?.format === f.det ? "selected" : ""}>${esc(f.label)}</option>`).join("")}
+      </select></div>
+      <div class="field"><label for="fValue">Code number / text</label><input id="fValue" value="${esc(draft.code?.value || "")}" inputmode="text" autocomplete="off" spellcheck="false"></div>
+    </div>
+    <span class="hint" id="codeErr" style="color:var(--danger);font-size:12.5px"></span>
+    <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" rows="2" placeholder="PIN, terms, where it works">${esc(draft.notes)}</textarea></div>
+    <label style="display:flex;gap:10px;align-items:center;font-weight:600"><input type="checkbox" id="fFav" ${draft.favorite ? "checked" : ""} style="width:20px;height:20px"> Favorite</label>
+    <div class="btns">
+      ${draft.id ? `<button class="btn danger" id="fDel">Delete</button>` : ""}
+      <button class="btn grow" id="fCancel">Cancel</button>
+      <button class="btn primary grow" id="fSave">Save</button>
+    </div>`;
+
+  const pv = $("#pv", el);
+  function readCode() {
+    const format = $("#fFormat", el).value, value = $("#fValue", el).value.trim();
+    return format && value ? { format, value } : null;
+  }
+  function preview() {
+    pv.innerHTML = "";
+    const code = readCode();
+    const err = $("#codeErr", el);
+    err.textContent = "";
+    if (code) {
+      const c = renderCode(code, { scale: 2, height: 16, text: true });
+      if (c) { pv.appendChild(c); return; }
+      err.textContent = "That number doesn't fit this code type: " + (codeError(code) || "check the digits.");
+    }
+    if (draft.photo) { const img = new Image(); img.alt = "Photo of the coupon"; img.src = URL.createObjectURL(draft.photo); pv.appendChild(img); }
+    else pv.innerHTML = `<span style="color:#6b7b80;font-size:13px">Pick a code type and type the number to see the barcode.</span>`;
+  }
+  preview();
+  $("#fFormat", el).onchange = preview;
+  $("#fValue", el).oninput = () => {
+    // Typing digits with no type chosen: guess the common retail formats by length.
+    const v = $("#fValue", el).value.trim(), sel = $("#fFormat", el);
+    if (!sel.value && /^\d+$/.test(v)) sel.value = v.length === 13 ? "ean_13" : v.length === 12 ? "upc_a" : v.length === 8 ? "ean_8" : v.length > 3 ? "code_128" : "";
+    preview();
+  };
+  el.querySelectorAll("[data-addtag]").forEach(b => b.onclick = () => {
+    const input = $("#fTags", el), t = b.dataset.addtag;
+    let list = input.value.split(",").map(normTag).filter(Boolean);
+    list = list.includes(t) ? list.filter(x => x !== t) : [...list, t];
+    input.value = list.join(", "); b.setAttribute("aria-pressed", list.includes(t));
+  });
+  $("#fCancel", el).onclick = closeSheet;
+  $("#fDel", el) && ($("#fDel", el).onclick = () => openSheet(s => confirmSheet(s, {
+    title: `Delete “${draft.name}”?`, body: "The coupon and its photo are removed from this phone. This can't be undone.",
+    yes: "Delete", danger: true,
+    onYes: async () => { await DB.del("items", draft.id); dropPhotoURL(draft.id); state.items = state.items.filter(i => i.id !== draft.id); closeShow(); closeSheet(); render(); toast("Deleted"); },
+  })));
+  $("#fSave", el).onclick = async () => {
+    const name = $("#fName", el).value.trim();
+    const code = readCode();
+    if (!name) { $("#fName", el).focus(); toast("Give it a name"); return; }
+    if (code && !renderCode(code)) { toast("Fix the code number first"); return; }
+    if (!code && !draft.photo) { toast("Add a code number or a photo"); return; }
+    const item = {
+      id: draft.id || uid(), name, folderId: $("#fFolder", el).value || null,
+      favorite: $("#fFav", el).checked,
+      tags: [...new Set($("#fTags", el).value.split(",").map(normTag).filter(Boolean))],
+      code, photo: draft.photo || null, notes: $("#fNotes", el).value.trim(), expires: $("#fExp", el).value,
+      createdAt: draft.createdAt || Date.now(), usedAt: draft.usedAt || 0,
+    };
+    await DB.put("items", item);
+    const n = state.items.findIndex(i => i.id === item.id);
+    if (n >= 0) state.items[n] = item; else state.items.push(item);
+    dropPhotoURL(item.id);
+    closeSheet();
+    if (showEl) openShow(item.id); else render();
+    toast(draft.id ? "Saved" : "Added");
+  };
+}
+
+/* Folder: create (id null) or rename / move / delete */
+function folderSheet(el, id) {
+  const f = id ? folderById(id) : null;
+  const n = f ? countInside(f.id) : 0;
+  const subCount = f ? descendantIds(f.id).size - 1 : 0;
+  el.innerHTML = `<h3>${f ? "Folder" : "New folder"}</h3>
+    <div class="field"><label for="dName">Name</label><input id="dName" value="${esc(f?.name || "")}" placeholder="e.g. Groceries" autocomplete="off"></div>
+    <div class="field"><label for="dParent">Inside</label><select id="dParent">${folderOptions(f ? (f.parentId ?? null) : state.folderId, f ? descendantIds(f.id) : new Set())}</select></div>
+    <div class="btns">
+      ${f ? `<button class="btn danger" id="dDel">Delete</button>` : ""}
+      <button class="btn grow" id="dCancel">Cancel</button>
+      <button class="btn primary grow" id="dSave">${f ? "Save" : "Create"}</button>
+    </div>`;
+  setTimeout(() => $("#dName", el)?.focus(), 50);
+  $("#dCancel", el).onclick = closeSheet;
+  $("#dSave", el).onclick = async () => {
+    const name = $("#dName", el).value.trim(); if (!name) { toast("Give the folder a name"); return; }
+    const folder = { id: f?.id || uid(), name, parentId: $("#dParent", el).value || null };
+    await DB.put("folders", folder);
+    const k = state.folders.findIndex(x => x.id === folder.id);
+    if (k >= 0) state.folders[k] = folder; else state.folders.push(folder);
+    if (!f) state.folderId = folder.id;
+    closeSheet(); render();
+  };
+  $("#dDel", el) && ($("#dDel", el).onclick = () => openSheet(s => confirmSheet(s, {
+    title: `Delete folder “${f.name}”?`,
+    body: n || subCount ? `Its ${n} coupon${n === 1 ? "" : "s"}${subCount ? ` and ${subCount} subfolder${subCount === 1 ? "" : "s"}` : ""} move up into “${pathLabel(f.parentId)}”. Nothing is deleted except the folder.` : "The folder is empty.",
+    yes: "Delete folder", danger: true,
+    onYes: async () => {
+      const up = f.parentId ?? null;
+      for (const c of state.folders.filter(x => x.parentId === f.id)) { c.parentId = up; await DB.put("folders", c); }
+      for (const i of state.items.filter(x => x.folderId === f.id)) { i.folderId = up; await DB.put("items", i); }
+      await DB.del("folders", f.id);
+      state.folders = state.folders.filter(x => x.id !== f.id);
+      state.folderId = up; closeSheet(); render();
+    },
+  })));
+}
+
+function confirmSheet(el, { title, body, yes, danger, onYes }) {
+  el.innerHTML = `<h3>${esc(title)}</h3><p>${esc(body)}</p>
+    <div class="btns"><button class="btn grow" id="cNo">Cancel</button><button class="btn ${danger ? "danger" : "primary"} grow" id="cYes">${esc(yes)}</button></div>`;
+  $("#cNo", el).onclick = closeSheet;
+  $("#cYes", el).onclick = onYes;
+}
+
+/* Backup & settings */
+function menuSheet(el) {
+  el.innerHTML = `<h3>Backup</h3>
+    <p>Coupons are stored only on this phone. If you clear Chrome's data or lose the phone, they're gone, so save a backup file now and then.</p>
+    <div class="btns"><button class="btn primary grow" id="mExport">Save backup file</button><button class="btn grow" id="mImport">Restore from file</button></div>
+    <p class="hint" id="mStore" style="font-size:12.5px"></p>
+    <p class="hint" style="font-size:12.5px">${state.items.length} coupon${state.items.length === 1 ? "" : "s"} in ${state.folders.length} folder${state.folders.length === 1 ? "" : "s"}.</p>
+    <div class="btns"><button class="btn grow" id="mClose">Close</button></div>`;
+  $("#mClose", el).onclick = closeSheet;
+  $("#mExport", el).onclick = exportBackup;
+  $("#mImport", el).onclick = () => $("#fileImport").click();
+  (async () => {
+    try {
+      const p = navigator.storage && await navigator.storage.persisted();
+      $("#mStore", el).textContent = p ? "Chrome has marked this storage as persistent, so it won't clear it to free space." : "Chrome may clear this storage if the phone runs low on space. Installing the app to your home screen makes that much less likely.";
+    } catch {}
+  })();
+}
+const blobToDataURL = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+async function exportBackup() {
+  const items = [];
+  for (const i of state.items) items.push({ ...i, photo: i.photo ? await blobToDataURL(i.photo) : null });
+  const data = JSON.stringify({ app: "coupon-wallet", version: 1, exportedAt: new Date().toISOString(), folders: state.folders, items });
+  const blob = new Blob([data], { type: "application/json" });
+  const name = `coupon-wallet-${new Date().toISOString().slice(0, 10)}.json`;
+  try {
+    const file = new File([blob], name, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Coupon Wallet backup" }); return; }
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast(IN_FRAME ? "Saving files is blocked in the preview" : "Backup saved to Downloads");
+}
+$("#fileImport").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (data.app !== "coupon-wallet") throw new Error("not a Coupon Wallet backup");
+    openSheet(s => confirmSheet(s, {
+      title: "Restore this backup?",
+      body: `It has ${data.items.length} coupons and ${data.folders.length} folders. Everything currently in the app is replaced.`,
+      yes: "Replace and restore", danger: true,
+      onYes: async () => {
+        await DB.clear();
+        for (const fo of data.folders) await DB.put("folders", fo);
+        for (const it of data.items) {
+          const photo = it.photo ? await (await fetch(it.photo)).blob() : null;
+          await DB.put("items", { ...it, photo });
+        }
+        photoURLs.forEach(u => URL.revokeObjectURL(u)); photoURLs.clear();
+        await load(); state.folderId = null; closeSheet(); render(); toast("Backup restored");
+      },
+    }));
+  } catch (err) { toast("Couldn't read that file: " + err.message); }
+});
+
+/* ---------- checkout view ---------- */
+let showEl = null, wakeLock = null;
+async function openShow(id) {
+  const item = state.items.find(i => i.id === id); if (!item) return;
+  item.usedAt = Date.now(); DB.put("items", item);
+  if (showEl) showEl.remove();
+  try { wakeLock?.release(); } catch {}
+  const hasCode = !!renderCode(item.code), hasPhoto = !!item.photo;
+  let mode = hasCode ? "code" : "photo";
+  showEl = document.createElement("div");
+  showEl.className = "show"; showEl.setAttribute("role", "dialog"); showEl.setAttribute("aria-label", item.name);
+  document.body.appendChild(showEl);
+  const draw = () => {
+    const exp = expiryState(item);
+    showEl.innerHTML = `
+      <div class="bar">
+        <button class="iconbtn" id="sBack" aria-label="Back">${ICONS.back}</button>
+        <span class="grow"></span>
+        <button class="iconbtn" id="sFav" aria-label="${item.favorite ? "Remove from favorites" : "Add to favorites"}" style="color:${item.favorite ? "#c98a06" : "#111"}">${item.favorite ? ICONS.starOn : ICONS.starOff}</button>
+        <button class="iconbtn" id="sEdit" aria-label="Edit">${ICONS.edit}</button>
+      </div>
+      <div class="stage">
+        <div class="name">${esc(item.name)}</div>
+        <div id="sArt"></div>
+        ${mode === "code" ? `<div class="value">${esc(item.code.value)}</div>` : ""}
+        ${hasCode && hasPhoto ? `<div class="toggle" role="group" aria-label="Show"><button data-m="code" aria-pressed="${mode === "code"}">Clean code</button><button data-m="photo" aria-pressed="${mode === "photo"}">Original photo</button></div>` : ""}
+        <div class="meta">${[exp ? exp.text : (item.expires ? "Valid until " + item.expires : ""), item.notes ? esc(item.notes) : ""].filter(Boolean).join(" · ")}</div>
+      </div>
+      <div class="hintline">Turn screen brightness up if the scanner struggles.</div>`;
+    const art = $("#sArt", showEl);
+    if (mode === "code") {
+      const big = renderCode(item.code, { scale: is2D(item.code.format) ? 8 : 4, height: 16 });
+      big.style.width = is2D(item.code.format) ? "min(78vw, 360px)" : "min(92vw, 560px)";
+      art.appendChild(big);
+    } else if (hasPhoto) { const img = new Image(); img.alt = "Photo of " + item.name; img.src = photoURL(item); art.appendChild(img); }
+    $("#sBack", showEl).onclick = closeShow;
+    $("#sFav", showEl).onclick = async () => { item.favorite = !item.favorite; await DB.put("items", item); draw(); };
+    $("#sEdit", showEl).onclick = () => openSheet(s => editSheet(s, { ...item }));
+    showEl.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { mode = b.dataset.m; draw(); });
+  };
+  draw();
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  if (!history.state?.show) history.pushState({ show: id }, "");
+}
+function closeShow(fromPop) {
+  if (!showEl) return;
+  showEl.remove(); showEl = null;
+  try { wakeLock?.release(); } catch {} wakeLock = null;
+  if (fromPop !== true && history.state?.show) history.back();
+  render();
+}
+// Android back button closes the checkout view instead of leaving the app.
+window.addEventListener("popstate", () => { if (showEl) closeShow(true); else if (state.overlay) closeSheet(); });
+
+/* ---------- start ---------- */
+async function load() {
+  state.folders = await DB.all("folders");
+  state.items = (await DB.all("items")).map(i => ({ tags: [], notes: "", expires: "", favorite: false, ...i }));
+}
+(async () => {
+  await DB.open();
+  try { navigator.storage?.persist?.(); } catch {}
+  await load();
+  render();
+  if (!IN_FRAME && "serviceWorker" in navigator && location.protocol === "https:") {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+</body></html>
