@@ -343,14 +343,39 @@ function codeError(code) {
   catch (e) { return String(e.message || e).replace(/^bwipp\.\w+#\d+:\s*/, ""); }
 }
 
-/* Read a barcode out of a picture. Uses the phone's built-in detector. */
-const HAS_DETECTOR = "BarcodeDetector" in window;
+/* Read a barcode out of a picture.
+   Chrome on Android has a reader built in (BarcodeDetector). Firefox and others don't,
+   so for them we load our own copy of the open-source ZXing reader (barcode-reader.js +
+   zxing_reader.wasm, about 1 MB, served from this site and cached for offline use).
+   It is only downloaded the first time a browser without the built-in reader needs it. */
+const HAS_NATIVE_DETECTOR = "BarcodeDetector" in window;
+let detectorClassPromise = null;
+function getDetectorClass() {
+  if (HAS_NATIVE_DETECTOR) return Promise.resolve(window.BarcodeDetector);
+  if (!detectorClassPromise) {
+    detectorClassPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "barcode-reader.js";
+      s.onload = () => {
+        const api = window.BarcodeDetectionAPI;
+        if (!api || !api.BarcodeDetector) { reject(new Error("reader failed to load")); return; }
+        api.prepareZXingModule({ overrides: { locateFile: (path, prefix) =>
+          path.endsWith(".wasm") ? new URL("zxing_reader.wasm", document.baseURI).href : prefix + path } });
+        resolve(api.BarcodeDetector);
+      };
+      s.onerror = () => reject(new Error("reader failed to load"));
+      document.head.appendChild(s);
+    }).catch(e => { detectorClassPromise = null; throw e; });
+  }
+  return detectorClassPromise;
+}
 async function detectIn(blob) {
-  if (!HAS_DETECTOR) return { status: "unsupported" };
+  let Detector;
+  try { Detector = await getDetectorClass(); } catch { return { status: "unsupported" }; }
   try {
-    const supported = await BarcodeDetector.getSupportedFormats();
+    const supported = await Detector.getSupportedFormats();
     const formats = FORMATS.map(f => f.det).filter(f => supported.includes(f));
-    const det = new BarcodeDetector({ formats });
+    const det = new Detector({ formats });
     const bmp = await createImageBitmap(blob);
     const found = await det.detect(bmp);
     if (!found.length) return { status: "none" };
@@ -524,7 +549,7 @@ function addSheet(el) {
     <button class="choice" id="aCam">${ICONS.camera}<span><b>Take a photo</b><span>Point at the barcode, fill most of the frame, keep it sharp.</span></span></button>
     <button class="choice" id="aGal">${ICONS.image}<span><b>Choose a picture</b><span>A screenshot of an email or app coupon works well.</span></span></button>
     <button class="choice" id="aType">${ICONS.keys}<span><b>Type the number</b><span>For cards with the number printed under the barcode.</span></span></button>
-    ${!HAS_DETECTOR ? `<p class="hint">This browser can't read barcodes from pictures, so photos are saved as photos. Chrome on Android can.</p>` : ""}`;
+`;
   $("#aCam", el).onclick = () => $("#fileCamera").click();
   $("#aGal", el).onclick = () => $("#fileGallery").click();
   $("#aType", el).onclick = () => openSheet(s => editSheet(s, newDraft()));
@@ -563,7 +588,7 @@ function editSheet(el, draft) {
   const known = allTags();
   const detectMsg = !d ? "" :
     d.status === "ok" ? `<div class="detect ok">Barcode found (${esc(fmt(d.code.format)?.label.split(" (")[0] || d.code.format)})${d.count > 1 ? ` (the largest of ${d.count} in the picture)` : ""}. The app will show a clean copy at checkout, and keep the photo as a backup.</div>` :
-    d.status === "unsupported" ? `<div class="detect no">This browser can't read barcodes, so the photo will be shown at checkout. You can type the number below to get a clean code.</div>` :
+    d.status === "unsupported" ? `<div class="detect no">The barcode reader couldn't load (are you offline on first use?), so the photo will be shown at checkout. You can type the number below to get a clean code.</div>` :
     `<div class="detect no">No barcode found in the picture. The photo will be shown as-is. If there's a number under the barcode, type it below for a cleaner code.</div>`;
   el.innerHTML = `
     <h3>${draft.id ? "Edit" : "New coupon"}</h3>
@@ -820,6 +845,7 @@ async function load() {
   try { navigator.storage?.persist?.(); } catch {}
   await load();
   render();
+  if (!HAS_NATIVE_DETECTOR) setTimeout(() => getDetectorClass().catch(() => {}), 1500);
   if (!IN_FRAME && "serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }

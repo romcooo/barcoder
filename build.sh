@@ -4,7 +4,7 @@
 # copies the barcode-drawing library and the install files next to it.
 set -e
 cd "$(dirname "$0")"
-[ -d node_modules/bwip-js ] || npm install --silent
+[ -d node_modules/bwip-js ] && [ -d node_modules/zxing-wasm ] || npm install --silent
 rm -rf docs; mkdir docs
 { echo '<!doctype html><html lang="en"><head><meta charset="utf-8">'
   echo '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
@@ -14,4 +14,7 @@ rm -rf docs; mkdir docs
   echo '</body></html>'; } > docs/index.html
 cp src/manifest.webmanifest src/sw.js src/icon-192.png src/icon-512.png docs/
 cp node_modules/bwip-js/dist/bwip-js-min.js docs/
+# Barcode reader for browsers without a built-in one (Firefox etc.)
+cp node_modules/barcode-detector/dist/iife/ponyfill.js docs/barcode-reader.js
+cp node_modules/zxing-wasm/dist/reader/zxing_reader.wasm docs/
 touch docs/.nojekyll
