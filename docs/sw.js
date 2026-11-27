@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached on install, so the wallet opens
 // with no signal (handy in shop basements). Bump VERSION when you publish a change, or phones keep the old copy.
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL = ["./", "index.html", "bwip-js-min.js", "barcode-reader.js", "zxing_reader.wasm", "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
