@@ -66,9 +66,15 @@ section { display: flex; flex-direction: column; gap: 10px; }
 .sechead { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
 .linkbtn { border: 0; background: none; color: var(--accent); font-weight: 600; font-size: 14px; padding: 4px 0; }
 
-.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 14px; color: var(--muted); }
-.crumbs button { border: 0; background: none; padding: 2px 4px; color: var(--accent); font-weight: 500; }
-.crumbs .here { color: var(--ink); font-weight: 600; padding: 2px 4px; }
+.folderhead { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.folderhead .titles { display: flex; flex-direction: column; min-width: 0; }
+.folderhead .fname { font: 700 19px/1.2 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.topname { font: 700 17px/1.2 var(--font-display); }
+.upbtn { flex: none; width: 46px; height: 46px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); display: grid; place-items: center; }
+.upbtn:hover { background: var(--accent-soft); }
+.upbtn svg { width: 24px; height: 24px; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0 2px; font-size: 13.5px; color: var(--muted); margin-left: -6px; }
+.crumbs button { border: 0; background: none; padding: 6px; min-height: 32px; color: var(--accent); font-weight: 500; }
 
 .favstrip { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
 .favcard { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 0; text-align: left; overflow: hidden; display: flex; flex-direction: column; }
@@ -477,10 +483,15 @@ function renderBrowser() {
   const subs = childFolders(fid);
   const items = itemsIn(fid);
   const favs = fid === null ? state.items.filter(i => i.favorite).sort((a, b) => (b.usedAt || 0) - (a.usedAt || 0)) : [];
-  const crumbs = `<nav class="crumbs" aria-label="Folder path">
-      ${fid === null ? `<span class="here">All folders</span>` : `<button data-go="">All folders</button>`}
-      ${path.map((f, n) => `<span aria-hidden="true">›</span>${n === path.length - 1 ? `<span class="here">${esc(f.name)}</span>` : `<button data-go="${esc(f.id)}">${esc(f.name)}</button>`}`).join("")}
-    </nav>`;
+  // Inside a folder: a big "up" button, the folder's name, and the path above it as tappable links.
+  const parent = fid === null ? null : (folderById(fid)?.parentId ?? null);
+  const crumbs = fid === null ? `<span class="topname">All folders</span>` : `<div class="folderhead">
+      <button class="upbtn" data-go="${esc(parent ?? "")}" aria-label="Up to ${esc(pathLabel(parent) === "Top level" ? "All folders" : folderById(parent).name)}">${ICONS.back}</button>
+      <div class="titles">
+        <nav class="crumbs" aria-label="Folder path"><button data-go="">All folders</button>
+          ${path.slice(0, -1).map(f => `<span aria-hidden="true">›</span><button data-go="${esc(f.id)}">${esc(f.name)}</button>`).join("")}</nav>
+        <span class="fname">${esc(path[path.length - 1].name)}</span>
+      </div></div>`;
   const nothing = !subs.length && !items.length;
   return `
     ${favs.length ? `<section aria-label="Favorites"><div class="sechead"><h2>Favorites</h2></div>
@@ -531,7 +542,7 @@ function bindMain() {
     const t = b.dataset.tag; state.tagFilter.has(t) ? state.tagFilter.delete(t) : state.tagFilter.add(t); render();
   });
   $("[data-fav]").onclick = () => { state.favOnly = !state.favOnly; render(); };
-  app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { state.folderId = b.dataset.go || null; render(); window.scrollTo(0, 0); });
+  app.querySelectorAll("[data-go]").forEach(b => b.onclick = () => goFolder(b.dataset.go || null));
   app.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openShow(b.dataset.open));
   $("#clearFilter") && ($("#clearFilter").onclick = () => { state.query = ""; state.tagFilter.clear(); state.favOnly = false; render(); });
   $("#addBtn").onclick = () => openSheet(addSheet);
@@ -681,7 +692,7 @@ async function openScanner() {
 function closeScanner(fromPop) {
   if (scanStop) { scanStop(); scanStop = null; }
   if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
-  if (scanEl) { scanEl.remove(); scanEl = null; if (fromPop !== true && history.state?.scan) history.back(); }
+  if (scanEl) { scanEl.remove(); scanEl = null; if (fromPop !== true && history.state?.scan) quietBack(); }
 }
 // Close the scanner to go somewhere else: drop its history entry without a "back",
 // so the back handler doesn't also close the sheet we open next.
@@ -818,8 +829,8 @@ function folderSheet(el, id) {
     await DB.put("folders", folder);
     const k = state.folders.findIndex(x => x.id === folder.id);
     if (k >= 0) state.folders[k] = folder; else state.folders.push(folder);
-    if (!f) state.folderId = folder.id;
-    closeSheet(); render();
+    closeSheet();
+    if (!f) goFolder(folder.id); else render();
   };
   $("#dDel", el) && ($("#dDel", el).onclick = () => openSheet(s => confirmSheet(s, {
     title: `Delete folder “${f.name}”?`,
@@ -831,7 +842,7 @@ function folderSheet(el, id) {
       for (const i of state.items.filter(x => x.folderId === f.id)) { i.folderId = up; await DB.put("items", i); }
       await DB.del("folders", f.id);
       state.folders = state.folders.filter(x => x.id !== f.id);
-      state.folderId = up; closeSheet(); render();
+      closeSheet(); goFolder(up);
     },
   })));
 }
@@ -893,7 +904,7 @@ $("#fileImport").addEventListener("change", async e => {
           await DB.put("items", { ...it, photo });
         }
         photoURLs.forEach(u => URL.revokeObjectURL(u)); photoURLs.clear();
-        await load(); state.folderId = null; closeSheet(); render(); toast("Backup restored");
+        await load(); closeSheet(); goFolder(null); toast("Backup restored");
       },
     }));
   } catch (err) { toast("Couldn't read that file: " + err.message); }
@@ -947,11 +958,30 @@ function closeShow(fromPop) {
   if (!showEl) return;
   showEl.remove(); showEl = null;
   try { wakeLock?.release(); } catch {} wakeLock = null;
-  if (fromPop !== true && history.state?.show) history.back();
+  if (fromPop !== true && history.state?.show) quietBack();
   render();
 }
-// Android back button closes the checkout view instead of leaving the app.
-window.addEventListener("popstate", () => { if (scanEl) closeScanner(true); else if (showEl) closeShow(true); else if (state.overlay) closeSheet(); });
+/* ---------- Android back button ----------
+   Back closes whatever is on top (scanner, checkout view, a sheet). With nothing open it
+   goes up one folder. To make that possible we keep one extra history entry (a "guard")
+   while you're inside a folder; at the top level there is none, so back leaves the app. */
+let skipPop = false;
+function quietBack() { skipPop = true; history.back(); }   // a back we trigger ourselves; the handler ignores it
+function ensureGuard() { if (state.folderId !== null && !history.state) history.pushState({ folderGuard: 1 }, ""); }
+function goFolder(id) {
+  state.folderId = id;
+  if (id === null && history.state?.folderGuard) quietBack();
+  else ensureGuard();
+  render(); window.scrollTo(0, 0);
+}
+window.addEventListener("popstate", () => {
+  if (skipPop) { skipPop = false; ensureGuard(); return; }
+  if (scanEl) closeScanner(true);
+  else if (showEl) closeShow(true);
+  else if (state.overlay) closeSheet();
+  else if (state.folderId !== null) { state.folderId = folderById(state.folderId)?.parentId ?? null; render(); window.scrollTo(0, 0); }
+  ensureGuard();
+});
 
 /* ---------- start ---------- */
 async function load() {
@@ -959,6 +989,7 @@ async function load() {
   state.items = (await DB.all("items")).map(i => ({ tags: [], notes: "", expires: "", favorite: false, ...i }));
 }
 (async () => {
+  try { if (history.state) history.replaceState(null, ""); } catch {}   // stale entry from before a reload
   await DB.open();
   try { navigator.storage?.persist?.(); } catch {}
   await load();
